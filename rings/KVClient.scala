@@ -16,7 +16,6 @@ import akka.util.Timeout
 class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int) {
   implicit val timeout = Timeout(100 seconds)
   private val generator = new scala.util.Random()
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   def directRead(key: BigInt): ReturnData = {
     // this random Store function as the receptionist for this
