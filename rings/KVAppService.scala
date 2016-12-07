@@ -8,8 +8,6 @@ case class Command() extends AppServiceAPI
 case class View(endpoints: Seq[ActorRef]) extends AppServiceAPI
 case class TestRead(key: BigInt) extends AppServiceAPI
 case class TestWrite(key: BigInt, value: Int) extends AppServiceAPI
-case class RouteMsg(operation: Int, key: BigInt, hashedKey: Int, value: Int, versionNum: Long) extends AppServiceAPI
-case class OpMsg(coordinatorNum: Int, Operation: Int, key: BigInt, value: Int, versionNum: Long) extends AppServiceAPI
 /**
  * This object instantiates the service tiers and a load-generating master, and
  * links all the actors together by passing around ActorRef references.
@@ -28,7 +26,7 @@ object KVAppService {
 
     /** Service tier: create app servers */
     val servers = for (i <- 0 until numClient)
-      yield system.actorOf(RingServer.props(i, numClient, stores, numReplica, numRead, numWrite, numStore), "RingServer" + i)
+      yield system.actorOf(RingServer.props(i, numClient, stores, numReplica, numRead, numWrite, numStore, system), "RingServer" + i)
 
     /** If you want to initialize a different service instead, that previous line might look like this:
       * yield system.actorOf(GroupServer.props(i, numNodes, stores, ackEach), "GroupServer" + i)

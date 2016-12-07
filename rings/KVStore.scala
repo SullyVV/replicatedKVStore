@@ -10,10 +10,13 @@ sealed trait KVStoreAPI
 case class Put(key: BigInt, value: Int, versionNum: Long, preferenceList: scala.collection.mutable.ArrayBuffer[Int]) extends KVStoreAPI
 case class Get(key: BigInt) extends KVStoreAPI
 case class Upadate(key: BigInt, value: Int, versionNum: Long) extends KVStoreAPI
+case class RouteMsg(operation: Int, key: BigInt, hashedKey: Int, value: Int, versionNum: Long) extends KVStoreAPI
+
 class StoredData(var value: Int, var versionNum: Long, preferenceList: scala.collection.mutable.ArrayBuffer[Int])
 // status: 0 -> write success, 1 -> version check failed, 2 -> write failed
-class ReturnData(val status: Integer, var key: BigInt, var value: Int, var versionNum: Long)
-class ReadData(var myStoreID: Int, var key: BigInt, var value: Int, var versionNum: Long)
+class ReturnData(val status: Int, var key: BigInt, var value: Int, var versionNum: Long)
+// status: 0 --> read success, 1 --> read failure
+class ReadData(val status: Int, var myStoreID: Int, var key: BigInt, var value: Int, var versionNum: Long)
 /**
  * KVStore is a local key-value store based on actors.  Each store actor controls a portion of
  * the key space and maintains a hash of values for the keys in its portion.  The keys are 128 bits
@@ -30,6 +33,7 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     case View(e) =>
       endpoints = Some(e)
     case RouteMsg(operation, key, hashedKey, value, versionNum) =>
+      println(s"storeServer ${myStoreID} receives the routeMsg")
       val stores = endpoints.get
       if (operation == 1) {
         val res = write(key, hashedKey, value, versionNum, stores)
@@ -44,10 +48,9 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
       store(key).versionNum = versionNum
     case Put(key, value, versionNum, preferenceList) =>
       // ignore the write failure at this moment, now only reason unable to write is version check failure
-      //val rand = generator.nextInt(100)
       // return integer: 0 -> write success, 1 -> version check failed, 2 -> write failed
+      println(s"storeServer ${myStoreID} receives the PutMsg")
       if (store.contains(key) && versionNum < store(key).versionNum) {
-        println(s" version check failed")
         sender() ! 1
       } else {
         // write success
@@ -56,9 +59,9 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
       }
     case Get(key) =>
       if (store.contains(key)) {
-
+        sender() ! new ReadData(0, myStoreID, key, store(key).value, store(key).versionNum)
       } else {
-
+        sender() ! new ReadData(1, myStoreID, key, -1, -1)
       }
   }
 
@@ -72,7 +75,7 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     }
     return tmpKey
   }
-  def read(key: BigInt, hashedKey: Int, value: Int, stores: Seq[ActorRef]): ReturnData = {
+  def read(key: BigInt, hashedKey: Int, stores: Seq[ActorRef]): ReturnData = {
     val coordinatorNum = findCoordinator(hashedKey)
     val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
     for (i <- 0 until numReplica) {
@@ -84,7 +87,7 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     for (i <- 0 until numReplica) {
       if (preferenceList(i) == myStoreID) {
         if (store.contains(key)) {
-          readList += new ReadData(storeID, key, store(key).value, store(key).versionNum)
+          readList += new ReadData(0, myStoreID, key, store(key).value, store(key).versionNum)
         }
       } else {
         val future = ask(stores(preferenceList(i)), Get(key))
@@ -92,22 +95,29 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
         readList += done
       }
     }
-    // check number of successful read
-    var currNode = readList(0).myStoreID
-    val ret = new ReturnData(0, key, readList(0).value, readList(0).versionNum)
-    for (i <- 1 until numReplica) {
-      if (readList(i).versionNum > ret.versionNum) {
-        updateList += currNode
-        currNode = readList(i).myStoreID
-        ret.value = readList(i).value
-        ret.versionNum = readList(i).versionNum
+    // check number of successful read, find read result with heighest version number
+    var readVNum = Long.MinValue
+    var readValue = -1
+    for (readElement <- readList) {
+      if (readElement.versionNum > readVNum) {
+        readVNum = readElement.versionNum
+        readValue = readElement.value
       }
     }
-    // remind stores with stale data
-    for (storeID <- updateList) {
-      stores(storeID) ! Update(ret.key, ret.value, ret.versionNum)
+    val ret = new ReturnData(0, key, readValue, readVNum)
+    // get those store servers who holds this key and needs an update
+    for (readElement <- readList) {
+      if (readElement.versionNum < ret.versionNum) {
+        updateList += readElement.myStoreID
+      }
     }
+    // multicast this update info to  all involved store servers
+    for (storeServers <- updateList) {
+      stores(storeServers) ! Upadate(ret.key, ret.value, ret.versionNum)
+    }
+    return ret
   }
+
   def write(key: BigInt, hashedKey: Int, value: Int, versionNum: Long, stores: Seq[ActorRef]): ReturnData = {
     val coordinatorNum = findCoordinator(hashedKey)
     val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
@@ -127,17 +137,21 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
         }
       } else {
         val future = ask(stores(preferenceList(i)), Put(key, value, versionNum, preferenceList))
-        val done = Await.result(future, timeout.duration).asInstanceOf[Boolean]
-        if (done == true) {
+        val done = Await.result(future, timeout.duration).asInstanceOf[Int]
+        if (done == 0) {
+          // send back 0 --> write success
           cnt += 1
-        } else {
+        } else if (done == 1){
+          // send back 1 --> version check failed
           return new ReturnData(1, key, value, versionNum)
         }
       }
     }
     if (cnt >= numWrite) {
+      // write success
       return new ReturnData(0, key, value, versionNum)
     } else {
+      // write failed due to unable to write
       return new ReturnData(2, key, value, versionNum)
     }
   }
@@ -146,6 +160,6 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
 
 object KVStore {
   def props(myStoreID: Int, storeTable: scala.collection.mutable.HashMap[Int, Int], numStore: Int, numReplica: Int, numRead: Int, numWrite:Int): Props = {
-     Props(classOf[KVStore], myStoreID, storeTable, numStore, numReplica, numRead, numWrite)
+    Props(classOf[KVStore], myStoreID, storeTable, numStore, numReplica, numRead, numWrite)
   }
 }

@@ -18,7 +18,7 @@ class RingMap extends scala.collection.mutable.HashMap[BigInt, RingCell]
  * @param storeServers the ActorRefs of the KVStore servers
  */
 
-class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int) extends Actor {
+class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem) extends Actor {
   val generator = new scala.util.Random
   val KVClient = new KVClient(myNodeID, storeServers, numReplica, numRead, numWrite, numStore)
   val localWeight: Int = 70
@@ -39,7 +39,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
   }
   private def tRead(key: BigInt) {
     val ret = KVClient.directRead(key)
-    if (ret.success == true) {
+    if (ret.status == 0) {
       println(s"client ${myNodeID} read successful, key ${key}, value ${ret.value}")
     } else {
       println(s"client ${myNodeID} read failed")
@@ -53,7 +53,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
 }
 
 object RingServer {
-  def props(myNodeID: Int, numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int): Props = {
-    Props(classOf[RingServer], myNodeID, numNodes, storeServers, numReplica, numRead, numWrite, numStore)
+  def props(myNodeID: Int, numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem): Props = {
+    Props(classOf[RingServer], myNodeID, numNodes, storeServers, numReplica, numRead, numWrite, numStore, system)
   }
 }
