@@ -16,10 +16,9 @@ case class Join() extends LoadMasterAPI
   *
   * @param numNodes How many actors/servers in the app tier
   * @param servers ActorRefs for the actors/servers in the app tier
-  * @param burstSize How many commands per burst
   */
 
-class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], val burstSize: Int) extends Actor {
+class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef]) extends Actor {
   val log = Logging(context.system, this)
   var active: Boolean = true
   var listener: Option[ActorRef] = None
@@ -34,48 +33,21 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], val burstSize: 
       test()
       sender() ! true
 
-    case BurstAck(senderNodeID: Int, stats: Stats) =>
-      serverStats(senderNodeID) += stats
-      val s = serverStats(senderNodeID)
-      if (s.messages == maxPerNode) {
-        println(s"node $senderNodeID done, $s")
-        nodesActive -= 1
-        if (nodesActive == 0)
-          deactivate()
-      } else {
-        if (active)
-          burst(servers(senderNodeID))
-      }
-
     case Join() =>
       listener = Some(sender)
   }
 
   def test() = {
-
-  }
-
-
-
-  def burst(server: ActorRef): Unit = {
-//    log.info(s"send a burst to node $target")
-    for (i <- 1 to burstSize)
-      server ! Command()
-  }
-
-  def deactivate() = {
-    active = false
-    val total = new Stats
-    serverStats.foreach(total += _)
-    println(s"$total")
-    if (listener.isDefined)
-      listener.get ! total
+    servers(0) ! TestWrite(2,1)
+    Thread.sleep(10)
+    servers(1) ! TestWrite(2,2)
+    //servers(0) ! TestWrite(2,1)
   }
 }
 
 object LoadMaster {
-   def props(numNodes: Int, servers: Seq[ActorRef], burstSize: Int): Props = {
-      Props(classOf[LoadMaster], numNodes, servers, burstSize)
+   def props(numNodes: Int, servers: Seq[ActorRef]): Props = {
+      Props(classOf[LoadMaster], numNodes, servers)
    }
 }
 

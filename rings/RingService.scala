@@ -16,13 +16,11 @@ class RingMap extends scala.collection.mutable.HashMap[BigInt, RingCell]
  * @param myNodeID sequence number of this actor/server in the app tier
  * @param numNodes total number of servers in the app tier
  * @param storeServers the ActorRefs of the KVStore servers
- * @param burstSize number of commands per burst
  */
 
-class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], burstSize: Int, numReplica: Int, numRead: Int, numWrite: Int) extends Actor {
+class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int) extends Actor {
   val generator = new scala.util.Random
-  val KVClient = new KVClient(storeServers, numReplica, numRead, numWrite)
-  val dirtycells = new AnyMap
+  val KVClient = new KVClient(myNodeID, storeServers, numReplica, numRead, numWrite, numStore)
   val localWeight: Int = 70
   val log = Logging(context.system, this)
 
@@ -39,11 +37,15 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
       case View(e) =>
         endpoints = Some(e)
   }
-  private def tRead(key: BigInt): Int = {
+  private def tRead(key: BigInt) {
     val ret = KVClient.directRead(key)
-    return ret
+    if (ret.success == true) {
+      println(s"client ${myNodeID} read successful, key ${key}, value ${ret.value}")
+    } else {
+      println(s"client ${myNodeID} read failed")
+    }
   }
-  private def tWrite(key: BigInt, value: Any) = {
+  private def tWrite(key: BigInt, value: Int) = {
     KVClient.directWrite(key, value)
   }
 
@@ -51,7 +53,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
 }
 
 object RingServer {
-  def props(myNodeID: Int, numNodes: Int, storeServers: Seq[ActorRef], burstSize: Int, numReplica: Int, numRead: Int, numWrite: Int): Props = {
-    Props(classOf[RingServer], myNodeID, numNodes, storeServers, burstSize, numReplica, numRead, numWrite)
+  def props(myNodeID: Int, numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int): Props = {
+    Props(classOf[RingServer], myNodeID, numNodes, storeServers, numReplica, numRead, numWrite, numStore)
   }
 }

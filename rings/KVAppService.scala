@@ -7,7 +7,8 @@ case class Prime() extends AppServiceAPI
 case class Command() extends AppServiceAPI
 case class View(endpoints: Seq[ActorRef]) extends AppServiceAPI
 case class TestRead(key: BigInt) extends AppServiceAPI
-case class TestWrite(key: BigInt, value: Any) extends AppServiceAPI
+case class TestWrite(key: BigInt, value: Int) extends AppServiceAPI
+
 /**
  * This object instantiates the service tiers and a load-generating master, and
  * links all the actors together by passing around ActorRef references.
@@ -19,7 +20,7 @@ case class TestWrite(key: BigInt, value: Any) extends AppServiceAPI
 
 object KVAppService {
 
-  def apply(system: ActorSystem, numClient: Int, numStore: Int, numReplica: Int, numRead: Int, numWrite: Int, ackEach: Int): ActorRef = {
+  def apply(system: ActorSystem, numClient: Int, numStore: Int, numReplica: Int, numRead: Int, numWrite: Int): ActorRef = {
     /** Storage tier: create K/V store servers */
     // lets assume there are 5 stores in our replicated server KVSttore
     val stores = for (i <- 0 until numStore)
@@ -27,7 +28,7 @@ object KVAppService {
 
     /** Service tier: create app servers */
     val servers = for (i <- 0 until numClient)
-      yield system.actorOf(RingServer.props(i, numClient, stores, ackEach, numReplica, numRead, numWrite), "RingServer" + i)
+      yield system.actorOf(RingServer.props(i, numClient, stores, numReplica, numRead, numWrite, numStore), "RingServer" + i)
 
     /** If you want to initialize a different service instead, that previous line might look like this:
       * yield system.actorOf(GroupServer.props(i, numNodes, stores, ackEach), "GroupServer" + i)
@@ -41,7 +42,7 @@ object KVAppService {
       server ! View(servers)
 
     /** Load-generating master */
-    val master = system.actorOf(LoadMaster.props(numClient, servers, ackEach), "LoadMaster")
+    val master = system.actorOf(LoadMaster.props(numClient, servers), "LoadMaster")
     master
   }
 }
