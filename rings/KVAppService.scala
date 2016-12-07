@@ -8,7 +8,8 @@ case class Command() extends AppServiceAPI
 case class View(endpoints: Seq[ActorRef]) extends AppServiceAPI
 case class TestRead(key: BigInt) extends AppServiceAPI
 case class TestWrite(key: BigInt, value: Int) extends AppServiceAPI
-
+case class RouteMsg(operation: Int, key: BigInt, hashedKey: Int, value: Int, versionNum: Long) extends AppServiceAPI
+case class OpMsg(coordinatorNum: Int, Operation: Int, key: BigInt, value: Int, versionNum: Long) extends AppServiceAPI
 /**
  * This object instantiates the service tiers and a load-generating master, and
  * links all the actors together by passing around ActorRef references.
@@ -20,11 +21,10 @@ case class TestWrite(key: BigInt, value: Int) extends AppServiceAPI
 
 object KVAppService {
 
-  def apply(system: ActorSystem, numClient: Int, numStore: Int, numReplica: Int, numRead: Int, numWrite: Int): ActorRef = {
+  def apply(system: ActorSystem, numClient: Int, numStore: Int, numReplica: Int, numRead: Int, numWrite: Int, storeTable: scala.collection.mutable.HashMap[Int, Int]): ActorRef = {
     /** Storage tier: create K/V store servers */
-    // lets assume there are 5 stores in our replicated server KVSttore
     val stores = for (i <- 0 until numStore)
-      yield system.actorOf(KVStore.props(), "RingStore" + i)
+      yield system.actorOf(KVStore.props(i, storeTable, numStore, numReplica, numRead, numWrite), "RingStore" + i)
 
     /** Service tier: create app servers */
     val servers = for (i <- 0 until numClient)
@@ -40,6 +40,10 @@ object KVAppService {
     /** Tells each server the list of servers and their ActorRefs wrapped in a message. */
     for (server <- servers)
       server ! View(servers)
+
+    /** Tells each store the list of other stores and their ActorRefs wrapped in a message. */
+    for (store <- stores)
+      store ! View(stores)
 
     /** Load-generating master */
     val master = system.actorOf(LoadMaster.props(numClient, servers), "LoadMaster")
