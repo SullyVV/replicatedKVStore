@@ -21,9 +21,9 @@ class RingMap extends scala.collection.mutable.HashMap[BigInt, RingCell]
  * @param storeServers the ActorRefs of the KVStore servers
  */
 
-class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem) extends Actor {
+class RingServer (val myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap[Int, Int], val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem) extends Actor {
   val generator = new scala.util.Random
-  val KVClient = new KVClient(myNodeID, storeServers, numReplica, numRead, numWrite, numStore)
+  val KVClient = new KVClient(myNodeID, storeTable, storeServers, numReplica, numRead, numWrite, numStore)
   val log = Logging(context.system, this)
   var endpoints: Option[Seq[ActorRef]] = None
   private val dateFormat = new SimpleDateFormat ("mm:ss")
@@ -47,14 +47,21 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
   }
 
   private def tWrite(key: BigInt, value: Int) = {
-    KVClient.directWrite(key, value)
+    val ret = KVClient.directWrite(key, value)
+    if (ret.status == 0) {
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSUCCESS: client ${myNodeID} write key: ${key}, value: ${value}\033[0m")
+    } else if (ret.status == 1) {
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version check failed\033[0m")
+    } else {
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, number of success write not enough\033[0m")
+    }
   }
 
 
 }
 
 object RingServer {
-  def props(myNodeID: Int, numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem): Props = {
-    Props(classOf[RingServer], myNodeID, numNodes, storeServers, numReplica, numRead, numWrite, numStore, system)
+  def props(myNodeID: Int,  storeTable: scala.collection.mutable.HashMap[Int, Int], numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem): Props = {
+    Props(classOf[RingServer], myNodeID, storeTable, numNodes, storeServers, numReplica, numRead, numWrite, numStore, system)
   }
 }

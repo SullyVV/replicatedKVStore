@@ -8,7 +8,7 @@ import scala.concurrent.Await
 import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
-
+import java.security.MessageDigest
 /**
  * KVClient implements a client's interface to a KVStore, with an optional writeback cache.
  * Instantiate one KVClient for each actor that is a client of the KVStore.  The values placed
@@ -16,40 +16,83 @@ import akka.util.Timeout
  * @param stores ActorRefs for the KVStore actors to use as storage servers.
  */
 
-class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int) {
+class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap[Int, Int], stores: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int) {
   implicit val timeout = Timeout(100 seconds)
   private val generator = new scala.util.Random()
   private val dateFormat = new SimpleDateFormat ("mm:ss")
+
   def directRead(key: BigInt): ReturnData = {
-    // this random Store function as the receptionist for this
-    val receptionStore = generator.nextInt(10)
     val hashedKey = hashForKey(key).toInt
-    val future = ask(stores(receptionStore), RouteMsg(0, key, hashedKey, -1, -1))
-    val done = Await.result(future, timeout.duration).asInstanceOf[ReturnData]
-    return done
+    val startStoreServer = findStoreServer(hashedKey)
+    val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
+    for (i <-0 until numReplica) {
+      preferenceList += (startStoreServer + i)%numStore
+    }
+    println(s"preference list for read key ${key} is ${preferenceList}")
+    val readList = new scala.collection.mutable.ArrayBuffer[ReadData]
+    val updateList = new scala.collection.mutable.ArrayBuffer[Int]
+    // first, read from all replicas
+    for (i <- 0 until numReplica) {
+      val future = ask(stores(preferenceList(i)), Get(key))
+      val done = Await.result(future, timeout.duration).asInstanceOf[ReadData]
+      readList += done
+    }
+    // check number of successful read, find read result with highest version number
+    var rCnt = 0
+    var readVNum = Long.MinValue
+    var readValue = -1
+    for (readElement <- readList) {
+      if (readElement.status == 0) {
+        rCnt += 1
+        if (readElement.versionNum > readVNum) {
+          readVNum = readElement.versionNum
+          readValue = readElement.value
+        }
+      }
+    }
+    println(s"number of success read is: ${rCnt}")
+    if (rCnt < numRead) {
+      return new ReturnData(2, key, -1, -1)
+    }
+    val ret = new ReturnData(0, key, readValue, readVNum)
+    // update store servers with stale data
+    for (readElement <- readList) {
+      if (readElement.versionNum < ret.versionNum) {
+        stores(readElement.myStoreID) ! Upadate(ret.key, ret.value, ret.versionNum)
+      }
+    }
+    return ret
   }
 
-  def directWrite(key: BigInt, value: Int) {
+  def directWrite(key: BigInt, value: Int): ReturnData = {
     val versionNum = System.nanoTime()
-    // test race condition
-//    if (key == 2 && myNodeID == 0) {
-//      Thread.sleep(50)
-//    }
-    // this random Store function as the receptionist for this
-    val receptionStore = generator.nextInt(numStore)
     val hashedKey = hashForKey(key).toInt
-    val future = ask(stores(receptionStore), RouteMsg(1, key, hashedKey, value, versionNum))
-    val done = Await.result(future, timeout.duration).asInstanceOf[ReturnData]
-    if (done.status == 0) {
-      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSUCCESS: client ${myNodeID} write key: ${key}, value: ${value}, version: ${versionNum}\033[0m")
-    } else if (done.status == 1) {
-      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
+    // client act as the coordinator
+    val startStoreServer = findStoreServer(hashedKey)
+    val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
+    for (i <-0 until numReplica) {
+      preferenceList += (startStoreServer + i)%numStore
+    }
+    println(s"preference list for write key ${key} is ${preferenceList}")
+    var wCnt = 0
+    for (i <- 0 until preferenceList.size) {
+      val future = ask(stores(preferenceList(i)), Put(key, value, versionNum, preferenceList))
+      val done = Await.result(future, timeout.duration).asInstanceOf[Int]
+      if (done == 1) {
+        return new ReturnData(1, key, value, versionNum)
+      }
+      wCnt += 1
+    }
+
+    println(s"number of success write for key: ${key} is: ${wCnt}")
+    if (wCnt >= numWrite) {
+      // write success
+      return new ReturnData(0, key, value, versionNum)
     } else {
-      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version: ${versionNum}, number of success write not enough\033[0m")
+      // write failed due to unable to write
+      return new ReturnData(2, key, value, versionNum)
     }
   }
-
-  import java.security.MessageDigest
 
   /** Generates a convenient hash key for an object to be written to the store.  Each object is created
     * by a given client, which gives it a sequence number that is distinct from all other objects created
@@ -60,6 +103,18 @@ class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: 
     val md: MessageDigest = MessageDigest.getInstance("MD5")
     val digest: Array[Byte] = md.digest(label.getBytes)
     BigInt(1, digest)
+  }
+  def findStoreServer(hashedKey: Int): Int = {
+    val posOfKey = Math.abs(hashedKey%360)
+    var tmpKey = -1
+    var min = Int.MaxValue
+    for ((k, v) <- storeTable) {
+      if (k > posOfKey && Math.abs(k - posOfKey) < min) {
+        tmpKey = v
+        min = Math.abs(k - posOfKey)
+      }
+    }
+    return tmpKey
   }
 
 }
