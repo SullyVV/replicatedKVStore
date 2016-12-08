@@ -22,7 +22,7 @@ object KVAppService {
   def apply(system: ActorSystem, numClient: Int, numStore: Int, numReplica: Int, numRead: Int, numWrite: Int, storeTable: scala.collection.mutable.HashMap[Int, Int]): ActorRef = {
     /** Storage tier: create K/V store servers */
     val stores = for (i <- 0 until numStore)
-      yield system.actorOf(KVStore.props(i, storeTable, numStore, numReplica, numRead, numWrite), "RingStore" + i)
+      yield system.actorOf(KVStore.props(i, system), "RingStore" + i)
 
     /** Service tier: create app servers */
     val servers = for (i <- 0 until numClient)
@@ -44,7 +44,7 @@ object KVAppService {
       store ! View(stores)
 
     /** Load-generating master */
-    val master = system.actorOf(LoadMaster.props(numClient, servers), "LoadMaster")
+    val master = system.actorOf(LoadMaster.props(numClient, servers, stores), "LoadMaster")
     master
   }
 }

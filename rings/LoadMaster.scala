@@ -18,7 +18,7 @@ case class Join() extends LoadMasterAPI
   * @param servers ActorRefs for the actors/servers in the app tier
   */
 
-class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef]) extends Actor {
+class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[ActorRef]) extends Actor {
   val log = Logging(context.system, this)
   var active: Boolean = true
   var listener: Option[ActorRef] = None
@@ -66,8 +66,8 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef]) extends Actor {
 }
 
 object LoadMaster {
-   def props(numNodes: Int, servers: Seq[ActorRef]): Props = {
-      Props(classOf[LoadMaster], numNodes, servers)
+   def props(numNodes: Int, servers: Seq[ActorRef], stores: Seq[ActorRef]): Props = {
+      Props(classOf[LoadMaster], numNodes, servers, stores)
    }
 }
 

@@ -35,6 +35,7 @@ object TestHarness {
   def run(): Unit = {
     val future = ask(master, Start())
     val done = Await.result(future, timeout.duration).asInstanceOf[Boolean]
+
     Thread.sleep(1000)
     system.shutdown()
   }

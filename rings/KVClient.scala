@@ -20,7 +20,6 @@ class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap
   implicit val timeout = Timeout(100 seconds)
   private val generator = new scala.util.Random()
   private val dateFormat = new SimpleDateFormat ("mm:ss")
-
   def directRead(key: BigInt): ReturnData = {
     val hashedKey = hashForKey(key).toInt
     val startStoreServer = findStoreServer(hashedKey)
@@ -76,12 +75,21 @@ class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap
     println(s"preference list for write key ${key} is ${preferenceList}")
     var wCnt = 0
     for (i <- 0 until preferenceList.size) {
-      val future = ask(stores(preferenceList(i)), Put(key, value, versionNum, preferenceList))
-      val done = Await.result(future, timeout.duration).asInstanceOf[Int]
-      if (done == 1) {
-        return new ReturnData(1, key, value, versionNum)
-      }
-      wCnt += 1
+        val future = ask(stores(preferenceList(i)), Put(key, value, versionNum, preferenceList))
+        val done = Await.result(future, timeout.duration).asInstanceOf[Int]
+        if (done == 1) {
+          // this write is already outdated
+          return new ReturnData(1, key, value, versionNum)
+        } else if (done == 2){
+          // specified store server is offline, try the backup one
+          val future = ask(stores((preferenceList(i)+numReplica)%numStore), TmpPut(key, value, versionNum, preferenceList(i)))
+          val done = Await.result(future, timeout.duration).asInstanceOf[Int]
+          if (done == 0) {
+            wCnt += 1
+          }
+        } else {
+          wCnt += 1
+        }
     }
 
     println(s"number of success write for key: ${key} is: ${wCnt}")
