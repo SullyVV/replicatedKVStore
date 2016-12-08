@@ -39,10 +39,16 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef]) extends Actor {
   def test() = {
     // test for write
     servers(0) ! TestWrite(2,1)
-    servers(1) ! TestWrite(5,2)
-    servers(0) ! TestWrite(4532, 0)
+//    servers(1) ! TestWrite(5,2)
+//    servers(0) ! TestWrite(4532, 0)
+    Thread.sleep(10)
+    servers(2) ! TestWrite(2,2)
     // test for read
-    servers(0) ! TestRead(5)
+    Thread.sleep(30)
+    servers(0) ! TestRead(2)
+    Thread.sleep(20)
+    servers(1) ! TestWrite(2,3)
+    servers(1) ! TestRead(2)
     //Thread.sleep(10)
     //servers(1) ! TestWrite(2,2)
 //    Thread.sleep(10)
