@@ -31,9 +31,10 @@ class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: 
 
   def directWrite(key: BigInt, value: Int) {
     val versionNum = System.nanoTime()
-    if (key == 2 && myNodeID == 0) {
-      Thread.sleep(50)
-    }
+    // test race condition
+//    if (key == 2 && myNodeID == 0) {
+//      Thread.sleep(50)
+//    }
     // this random Store function as the receptionist for this
     val receptionStore = generator.nextInt(numStore)
     val hashedKey = hashForKey(key).toInt
@@ -44,7 +45,7 @@ class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: 
     } else if (done.status == 1) {
       println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
     } else {
-      println(s"write failed")
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version: ${versionNum}, number of success write not enough\033[0m")
     }
   }
 

@@ -17,8 +17,8 @@ case class Get(key: BigInt) extends KVStoreAPI
 case class Upadate(key: BigInt, value: Int, versionNum: Long) extends KVStoreAPI
 case class RouteMsg(operation: Int, key: BigInt, hashedKey: Int, value: Int, versionNum: Long) extends KVStoreAPI
 
-class StoredData(var value: Int, var versionNum: Long, preferenceList: scala.collection.mutable.ArrayBuffer[Int])
-// status: 0 -> write success, 1 -> version check failed, 2 -> write failed
+class StoredData(var key: BigInt, var value: Int, var versionNum: Long)
+// status: 0 -> write success, 1 -> version check failed, 2 -> minimum number
 class ReturnData(val status: Int, var key: BigInt, var value: Int, var versionNum: Long)
 // status: 0 --> read success, 1 --> read failure
 class ReadData(val status: Int, var myStoreID: Int, var key: BigInt, var value: Int, var versionNum: Long)
@@ -48,16 +48,16 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
       }
 
     case Upadate(key, value, versionNum) =>
-      store(key).value = value
-      store(key).versionNum = versionNum
+      update(key, value, versionNum)
     case Put(key, value, versionNum, preferenceList) =>
       // ignore the write failure at this moment, now only reason unable to write is version check failure
       // return integer: 0 -> write success, 1 -> version check failed, 2 -> write failed
       if (store.contains(key) && versionNum < store(key).versionNum) {
+        println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: storeServer ${myStoreID} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
         sender() ! 1
       } else {
         // write success
-        store.put(key, new StoredData(value, versionNum, preferenceList))
+        store.put(key, new StoredData(key, value, versionNum))
         sender() ! 0
       }
     case Get(key) =>
@@ -80,6 +80,15 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     }
     return tmpKey
   }
+  def update(key: BigInt, value: Int, versionNum: Long) {
+    if (store.contains(key)) {
+      store(key).value = value
+      store(key).versionNum = versionNum
+    } else {
+      store.put(key, new StoredData(key, value, versionNum))
+
+    }
+  }
   def read(key: BigInt, hashedKey: Int, stores: Seq[ActorRef]): ReturnData = {
     val coordinatorNum = findCoordinator(hashedKey)
     val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
@@ -101,13 +110,20 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
       }
     }
     // check number of successful read, find read result with heighest version number
+    var cnt = 0
     var readVNum = Long.MinValue
     var readValue = -1
     for (readElement <- readList) {
-      if (readElement.versionNum > readVNum) {
-        readVNum = readElement.versionNum
-        readValue = readElement.value
+      if (readElement.status == 0) {
+        cnt += 1
+        if (readElement.versionNum > readVNum) {
+          readVNum = readElement.versionNum
+          readValue = readElement.value
+        }
       }
+    }
+    if (cnt < numRead) {
+      return new ReturnData(2, key, -1, -1)
     }
     val ret = new ReturnData(0, key, readValue, readVNum)
     // get those store servers who holds this key and needs an update
@@ -133,15 +149,21 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     println(s"storeServer ${myStoreID} is the receptionStoreServer, pList is ${preferenceList}")
     var cnt = 0
     for (i <- 0 until preferenceList.size) {
+      // test r/w/n
+//      if (key == 2 && preferenceList(i) == 6) {
+//        println("pass this")
+//      }
+      //else
       if (preferenceList(i) == myStoreID) {
         // receptionStore is in preference list
         if (store.contains(key) && versionNum < store(key).versionNum) {
           // once version check failed, return write failure directly
+          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: storeServer ${preferenceList(i)} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
           return new ReturnData(1, key, value, versionNum)
         } else {
           // write success
           println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSuccess\033[0m: storeServer ${preferenceList(i)} write \033[45mkey: ${key}, value: ${value}, version: ${versionNum}\033[0m success")
-          store.put(key, new StoredData(value, versionNum, preferenceList))
+          store.put(key, new StoredData(key, value, versionNum))
           cnt += 1
         }
       } else {

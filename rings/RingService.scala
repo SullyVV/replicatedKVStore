@@ -1,6 +1,9 @@
 package rings
 
-import akka.actor.{Actor, ActorSystem, ActorRef, Props}
+import java.text.SimpleDateFormat
+import java.util.Date
+
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.event.Logging
 
 class RingCell(var prev: BigInt, var next: BigInt)
@@ -23,7 +26,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
   val KVClient = new KVClient(myNodeID, storeServers, numReplica, numRead, numWrite, numStore)
   val log = Logging(context.system, this)
   var endpoints: Option[Seq[ActorRef]] = None
-
+  private val dateFormat = new SimpleDateFormat ("mm:ss")
   def receive() = {
       case TestRead(key) =>
         tRead(key)
@@ -36,8 +39,9 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
   private def tRead(key: BigInt) {
     val ret = KVClient.directRead(key)
     if (ret.status == 0) {
-      println(s"client ${myNodeID} read successful, key ${key}, value ${ret.value}")
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSUCCESS: client ${myNodeID} read key: ${key}, value: ${ret.value}, version: ${ret.versionNum}\033[0m")
     } else {
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} read key: ${key}, not enough success read \033[0m")
       println(s"client ${myNodeID} read failed")
     }
   }
