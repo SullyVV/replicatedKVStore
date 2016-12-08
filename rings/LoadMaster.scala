@@ -32,13 +32,17 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef]) extends Actor {
       log.info("Master starting bursts")
       test()
       sender() ! true
-
     case Join() =>
       listener = Some(sender)
   }
 
   def test() = {
+    // test for write
     servers(0) ! TestWrite(2,1)
+    servers(1) ! TestWrite(5,2)
+    servers(0) ! TestWrite(4532, 0)
+    // test for read
+    servers(0) ! TestRead(5)
     //Thread.sleep(10)
     //servers(1) ! TestWrite(2,2)
 //    Thread.sleep(10)

@@ -21,13 +21,8 @@ class RingMap extends scala.collection.mutable.HashMap[BigInt, RingCell]
 class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorRef], numReplica: Int, numRead: Int, numWrite: Int, numStore: Int, system: ActorSystem) extends Actor {
   val generator = new scala.util.Random
   val KVClient = new KVClient(myNodeID, storeServers, numReplica, numRead, numWrite, numStore)
-  val localWeight: Int = 70
   val log = Logging(context.system, this)
-
-  var stats = new Stats
-  var allocated: Int = 0
   var endpoints: Option[Seq[ActorRef]] = None
-
 
   def receive() = {
       case TestRead(key) =>
@@ -37,6 +32,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
       case View(e) =>
         endpoints = Some(e)
   }
+
   private def tRead(key: BigInt) {
     val ret = KVClient.directRead(key)
     if (ret.status == 0) {
@@ -45,6 +41,7 @@ class RingServer (val myNodeID: Int, val numNodes: Int, storeServers: Seq[ActorR
       println(s"client ${myNodeID} read failed")
     }
   }
+
   private def tWrite(key: BigInt, value: Int) = {
     KVClient.directWrite(key, value)
   }

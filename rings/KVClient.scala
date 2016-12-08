@@ -34,7 +34,7 @@ class KVClient (myNodeID: Int, stores: Seq[ActorRef], numReplica: Int, numRead: 
     val future = ask(stores(receptionStore), RouteMsg(1, key, hashedKey, value, versionNum))
     val done = Await.result(future, timeout.duration).asInstanceOf[ReturnData]
     if (done.status == 0) {
-      println(s"write success")
+      println(s"key: ${key} write success")
     } else if (done.status == 1) {
       println(s"version check failed")
     } else {

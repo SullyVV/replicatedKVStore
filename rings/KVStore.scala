@@ -1,9 +1,14 @@
 package rings
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
+
 import scala.concurrent.Await
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 
 sealed trait KVStoreAPI
@@ -28,12 +33,11 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
   private val store = new scala.collection.mutable.HashMap[BigInt, StoredData]
   val generator = new scala.util.Random
   var endpoints: Option[Seq[ActorRef]] = None
-
+  private val dateFormat = new SimpleDateFormat ("mm:ss")
   override def receive = {
     case View(e) =>
       endpoints = Some(e)
     case RouteMsg(operation, key, hashedKey, value, versionNum) =>
-      println(s"storeServer ${myStoreID} receives the routeMsg")
       val stores = endpoints.get
       if (operation == 1) {
         val res = write(key, hashedKey, value, versionNum, stores)
@@ -49,7 +53,6 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
     case Put(key, value, versionNum, preferenceList) =>
       // ignore the write failure at this moment, now only reason unable to write is version check failure
       // return integer: 0 -> write success, 1 -> version check failed, 2 -> write failed
-      println(s"storeServer ${myStoreID} receives the PutMsg")
       if (store.contains(key) && versionNum < store(key).versionNum) {
         sender() ! 1
       } else {
@@ -66,12 +69,14 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
   }
 
   def findCoordinator(hashedKey: Int): Int = {
+    val posOfKey = Math.abs(hashedKey%360)
     var tmpKey = -1
     var min = Int.MaxValue
     for ((k, v) <- storeTable) {
-      if (Math.abs(k - hashedKey) < min) {}
-      tmpKey = k
-      min = Math.abs(k - hashedKey)
+      if (k > posOfKey && Math.abs(k - posOfKey) < min) {
+        tmpKey = v
+        min = Math.abs(k - posOfKey)
+      }
     }
     return tmpKey
   }
@@ -119,19 +124,23 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
   }
 
   def write(key: BigInt, hashedKey: Int, value: Int, versionNum: Long, stores: Seq[ActorRef]): ReturnData = {
+    // try to write to all replicas, w success write --> success
     val coordinatorNum = findCoordinator(hashedKey)
     val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
     for (i <- 0 until numReplica) {
       preferenceList += (coordinatorNum + i)%numStore
     }
+    println(s"storeServer ${myStoreID} is the receptionStoreServer, pList is ${preferenceList}")
     var cnt = 0
-    for (i <- 0 until numReplica) {
+    for (i <- 0 until preferenceList.size) {
       if (preferenceList(i) == myStoreID) {
+        // receptionStore is in preference list
         if (store.contains(key) && versionNum < store(key).versionNum) {
           // once version check failed, return write failure directly
           return new ReturnData(1, key, value, versionNum)
         } else {
           // write success
+          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSuccess\033[0m: storeServer ${preferenceList(i)} write \033[45mkey: ${key}, value: ${value}, version: ${versionNum}\033[0m success")
           store.put(key, new StoredData(value, versionNum, preferenceList))
           cnt += 1
         }
@@ -140,6 +149,7 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
         val done = Await.result(future, timeout.duration).asInstanceOf[Int]
         if (done == 0) {
           // send back 0 --> write success
+          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSuccess\033[0m: storeServer ${preferenceList(i)} write \033[45mkey: ${key}, value: ${value}, version: ${versionNum}\033[0m success")
           cnt += 1
         } else if (done == 1){
           // send back 1 --> version check failed
@@ -147,6 +157,7 @@ class KVStore (val myStoreID: Int, val storeTable: scala.collection.mutable.Hash
         }
       }
     }
+    println(s"number of success write for key: ${key} is: ${cnt}")
     if (cnt >= numWrite) {
       // write success
       return new ReturnData(0, key, value, versionNum)
