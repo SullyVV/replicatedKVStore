@@ -61,7 +61,7 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[Act
 //    servers(0) ! TestRead(1)
     /*************************************************************************/
 
-    /********* multiple client, same key, multple write (write order) *********/
+    /********* multiple client, same key, multple write (random order) *********/
 //    servers(0) ! TestWrite(1,1)
 //    servers(1) ! TestWrite(1,2)
 //    servers(2) ! TestWrite(1,3)
@@ -77,12 +77,39 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[Act
 //    servers(2) ! TestRead(83)
     /****************************************************************/
 
-    /********* two clients race to write on a given key *********/
-    servers(0) ! TestWrite(1, 5)
+    /********* write with old version number arrives later than new write *********/
+//    servers(0) ! TestWrite(1, 5)
+//    Thread.sleep(20)
+//    servers(1) ! TestWrite(1, 10)
+//    Thread.sleep(50)
+//    servers(2) ! TestRead(1)
+    /******************************************************************************/
+
+    /********* partial success read and partial success write *********/
+//    println(s"******************first write******************")
+//    println()
+//    servers(0) ! TestWrite(2, 1)
+//    Thread.sleep(30)
+//    servers(2) ! TestRead(2)
+//    Thread.sleep(30)
+//    println()
+//    println(s"******************second write******************")
+//    println()
+//    servers(1) ! TestWrite(2,2)
+//    Thread.sleep(30)
+//    servers(2) ! TestRead(2)
+    /******************************************************************/
+
+    /********* store Server offline and come back online *********/
+    stores(4) ! Disconnect()
+    servers(0) ! TestWrite(2,1)
     Thread.sleep(20)
-    servers(1) ! TestWrite(1, 10)
-    servers(2) ! TestRead(1)
-    /************************************************/
+    servers(0) ! TestRead(2)
+    Thread.sleep(20)
+    stores(4) ! Connect()
+    Thread.sleep(10)
+    servers(0) ! TestRead(2)
+    /******************************************************************/
 
   }
 }
