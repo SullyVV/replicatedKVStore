@@ -49,17 +49,20 @@ class KVStore (val myStoreID: Int, val system: ActorSystem) extends Actor {
   }
   override def receive = {
     case Disconnect() =>
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[33m  OFFLINE: storeServer ${myStoreID} is offline\033[0m")
       offLine = true
     case Connect() =>
+      println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[34m  ONLINE: storeServer ${myStoreID} is online\033[0m")
       offLine = false
     case View(e) =>
       endpoints = Some(e)
-      println(s"get here")
     case Transfer(key, value, versionNum) =>
       if (offLine == true) {
+        println(s"storeServer ${myStoreID} get transfer data ${key}, but it is still offline")
         sender() ! 1
       } else {
         //update itself
+        println(s"storeServer ${myStoreID} get transfer data ${key}, it is online now")
         if (!(store.contains(key) && versionNum < store(key).versionNum)) {
           store.put(key, new StoredData(key, value, versionNum))
         }
@@ -86,15 +89,15 @@ class KVStore (val myStoreID: Int, val system: ActorSystem) extends Actor {
       }
     case TmpPut(key, value, versionNum, originHolder) =>
       if (offLine == true) {
-        println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31m    FAIL: storeServer ${myStoreID} is offline\033[0m")
+        println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31m    FAIL: tmp storeServer ${myStoreID} is offline\033[0m")
         sender() ! 2
       } else {
         if (store.contains(key) && versionNum < store(key).versionNum) {
-          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31m    FAIL: storeServer ${myStoreID} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
+          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31m    FAIL: tmp storeServer ${myStoreID} write key: ${key}, value: ${value}, version: ${versionNum}, version check failed\033[0m")
           sender() ! 1
         } else {
           // write success
-          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[34m    SUCCESS: storeServer ${myStoreID} write key: ${key}, value: ${value}, version: ${versionNum}\033[0m")
+          println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[34m    SUCCESS: tmp storeServer ${myStoreID} write key: ${key}, value: ${value}, version: ${versionNum}\033[0m")
           store.put(key, new StoredData(key, value, versionNum))
           tmpList.put(originHolder, new StoredData(key, value, versionNum))
           sender() ! 0
@@ -117,6 +120,8 @@ class KVStore (val myStoreID: Int, val system: ActorSystem) extends Actor {
       val future = ask(storeServers(k), Transfer(v.key, v.value, v.versionNum))
       val done = Await.result(future, timeout.duration).asInstanceOf[Int]
       if (done == 0) {
+        println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[36mAUTOMATIC: storeServer ${myStoreID} transfer key ${v.key} from to original store server ${k} successful\033[0m")
+        println(s"")
         // means original server is online and get the msg, clean up this tmp server's store and tmpList
         tmpList.remove(k)
         store.remove(v.key)

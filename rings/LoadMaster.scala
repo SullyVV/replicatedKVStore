@@ -37,31 +37,53 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[Act
   }
 
   def test() = {
-    // test for write
-    servers(0) ! TestWrite(2,1)
-    //servers(1) ! TestWrite(5,2)
-    Thread.sleep(10)
-    servers(1) ! TestWrite(2, 5)
-    Thread.sleep(10)
-    servers(2) ! TestWrite(18, 7)
-    servers(1) ! TestWrite(19, 20)
-    servers(0) ! TestWrite(290, 5)
-    servers(0) ! TestWrite(2, 15)
-    //servers(2) ! TestWrite(2,2)
-    // test for read
-    //Thread.sleep(30)
-    servers(2) ! TestRead(2)
-    servers(0) ! TestRead(18)
-    servers(1) ! TestRead(19)
+    /********* read non-existed key *********/
+//    servers(0) ! TestRead(1)
+    /****************************************/
 
-    //Thread.sleep(20)
-    //servers(1) ! TestWrite(2,3)
-    //servers(1) ! TestRead(2)
-    //Thread.sleep(10)
-    //servers(1) ! TestWrite(2,2)
-//    Thread.sleep(10)
-//    servers(1) ! TestWrite(2,2)
-    //servers(0) ! TestWrite(2,1)
+    /********* Single Client, single key, multiple write *********/
+//    servers(0) ! TestWrite(2,1)
+//    servers(0) ! TestWrite(2,2)
+//    servers(0) ! TestWrite(2,3)
+//    servers(0) ! TestWrite(2,4)
+//    servers(0) ! TestWrite(2,5)
+//    servers(0) ! TestWrite(2,6)
+//    servers(0) ! TestRead(2)
+    /*************************************************************/
+
+    /********* multiple client, same key, multple write (write order) *********/
+//    servers(0) ! TestWrite(1,1)
+//    Thread.sleep(20)
+//    servers(1) ! TestWrite(1,2)
+//    Thread.sleep(20)
+//    servers(2) ! TestWrite(1,3)
+//    Thread.sleep(20)
+//    servers(0) ! TestRead(1)
+    /*************************************************************************/
+
+    /********* multiple client, same key, multple write (write order) *********/
+//    servers(0) ! TestWrite(1,1)
+//    servers(1) ! TestWrite(1,2)
+//    servers(2) ! TestWrite(1,3)
+//    servers(0) ! TestRead(1)
+    /*************************************************************************/
+
+    /********* multiple client, multiple key, multple write *********/
+//    servers(0) ! TestWrite(61,1)
+//    servers(1) ! TestWrite(83,2)
+//    servers(2) ! TestWrite(1231,3)
+//    servers(0) ! TestRead(1231)
+//    servers(1) ! TestRead(61)
+//    servers(2) ! TestRead(83)
+    /****************************************************************/
+
+    /********* two clients race to write on a given key *********/
+    servers(0) ! TestWrite(1, 5)
+    Thread.sleep(20)
+    servers(1) ! TestWrite(1, 10)
+    servers(2) ! TestRead(1)
+    /************************************************/
+
   }
 }
 
