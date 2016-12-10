@@ -27,7 +27,10 @@ class RingServer (val myNodeID: Int,  val storeTable: scala.collection.mutable.H
   val log = Logging(context.system, this)
   var endpoints: Option[Seq[ActorRef]] = None
   private val dateFormat = new SimpleDateFormat ("mm:ss")
+  val statTable = new scala.collection.mutable.HashMap[BigInt, Stat]
   def receive() = {
+      case CheckReport() =>
+        sender() ! statTable
       case TestRead(key) =>
         tRead(key)
       case TestWrite(key, value) =>
@@ -47,12 +50,18 @@ class RingServer (val myNodeID: Int,  val storeTable: scala.collection.mutable.H
   }
 
   private def tWrite(key: BigInt, value: Int) = {
+    if (!statTable.contains(key)) {
+      statTable.put(key, new Stat(key, 0, 0))
+    }
     val ret = KVClient.directWrite(key, value)
     if (ret.status == 0) {
+      statTable(key).successWrite += 1
       println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[32mSUCCESS: client ${myNodeID} write key: ${key}, value: ${value}\033[0m")
     } else if (ret.status == 1) {
+      statTable(key).failWrite += 1
       println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, version check failed\033[0m")
     } else {
+      statTable(key).failWrite += 1
       println(s"${dateFormat.format(new Date(System.currentTimeMillis()))}: \033[31mFAIL: client ${myNodeID} write key: ${key}, value: ${value}, number of success write not enough\033[0m")
     }
   }

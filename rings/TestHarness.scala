@@ -2,11 +2,12 @@ package rings
 
 import scala.concurrent.duration._
 import scala.concurrent.Await
-
-import akka.actor.{Actor, ActorSystem, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
+
+import scala.collection.mutable
 
 object TestHarness {
   val system = ActorSystem("Rings")
@@ -35,8 +36,15 @@ object TestHarness {
   def run(): Unit = {
     val future = ask(master, Start())
     val done = Await.result(future, timeout.duration).asInstanceOf[Boolean]
-
-    Thread.sleep(1000)
+    val future2 = ask(master, Report())
+    val done2 = Await.result(future2, timeout.duration).asInstanceOf[mutable.HashMap[BigInt, Stat]]
+    println()
+    println(s"correctness check result:")
+    println()
+    for ((k,v) <- done2) {
+      println(s"key ${k} has success write: ${v.successWrite} and fail write: ${v.failWrite}")
+    }
+    Thread.sleep(30000)
     system.shutdown()
   }
 

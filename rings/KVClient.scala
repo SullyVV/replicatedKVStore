@@ -111,46 +111,6 @@ class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap
       }
     }
 
-//  def directWrite(key: BigInt, value: Int): ReturnData = {
-//    val versionNum = System.nanoTime()
-//    val hashedKey = hashForKey(key).toInt
-//    // client act as the coordinator
-//    val startStoreServer = findStoreServer(hashedKey)
-//    val preferenceList = new scala.collection.mutable.ArrayBuffer[Int]
-//    for (i <-0 until numReplica) {
-//      preferenceList += (startStoreServer + i)%numStore
-//    }
-//    println(s"preference list for write key ${key} is ${preferenceList}")
-//    var wCnt = 0
-//    for (i <- 0 until preferenceList.size) {
-//      val future = ask(stores(preferenceList(i)), Put(key, value, versionNum, preferenceList))
-//      val done = Await.result(future, timeout.duration).asInstanceOf[Int]
-//      if (done == 1) {
-//        // this write is already outdated
-//        return new ReturnData(1, key, value, versionNum)
-//      } else if (done == 2){
-//          // specified store server is offline, try the backup one
-//          println(s"store server ${preferenceList(i)} is offline, rewrite to storeServer ${(preferenceList(i)+numReplica)%numStore}")
-//          val future = ask(stores((preferenceList(i)+numReplica)%numStore), TmpPut(key, value, versionNum, preferenceList(i)))
-//          val done = Await.result(future, timeout.duration).asInstanceOf[Int]
-//          if (done == 0) {
-//            wCnt += 1
-//          }
-//      } else {
-//          wCnt += 1
-//      }
-//    }
-//
-//    println(s"number of success write for key: ${key}, value: ${value} is: ${wCnt}")
-//    if (wCnt >= numWrite) {
-//      // write success
-//      return new ReturnData(0, key, value, versionNum)
-//    } else {
-//      // write failed due to unable to write
-//      return new ReturnData(2, key, value, versionNum)
-//    }
-//  }
-
   /** Generates a convenient hash key for an object to be written to the store.  Each object is created
     * by a given client, which gives it a sequence number that is distinct from all other objects created
     * by that client.
@@ -173,5 +133,6 @@ class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap
     }
     return tmpKey
   }
+
 
 }

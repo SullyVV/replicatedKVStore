@@ -8,6 +8,8 @@ case class Command() extends AppServiceAPI
 case class View(endpoints: Seq[ActorRef]) extends AppServiceAPI
 case class TestRead(key: BigInt) extends AppServiceAPI
 case class TestWrite(key: BigInt, value: Int) extends AppServiceAPI
+case class CheckReport() extends AppServiceAPI
+case class Report() extends AppServiceAPI
 /**
  * This object instantiates the service tiers and a load-generating master, and
  * links all the actors together by passing around ActorRef references.
