@@ -70,11 +70,11 @@ class KVClient (myNodeID: Int,  val storeTable: scala.collection.mutable.HashMap
       }
       println(s"preference list for write key ${key} is ${preferenceList}")
       // get highest version number for this key from server, so form causal relationship with last write
-      var versionNum = -1
+      var versionNum = Int.MaxValue
       for (i <- 0 until preferenceList.size) {
         val future = ask(stores(preferenceList(i)), AcquireVersionNum(key))
         val done = Await.result(future, timeout.duration).asInstanceOf[Int]
-        if (done > versionNum) {
+        if (done < versionNum) {
           versionNum = done
         }
       }

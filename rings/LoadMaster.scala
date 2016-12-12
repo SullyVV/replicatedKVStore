@@ -63,19 +63,18 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[Act
 //    servers(0) ! TestWrite(2,1)
 //    servers(0) ! TestWrite(2,2)
 //    servers(0) ! TestWrite(2,3)
-//    servers(0) ! TestWrite(2,4)
-//    servers(0) ! TestWrite(2,5)
-//    servers(0) ! TestWrite(2,6)
 //    servers(0) ! TestRead(2)
     /*************************************************************/
 
     /********* multiple client, same key, multple write (write order) *********/
-//    servers(0) ! TestWrite(1,1)
-//    Thread.sleep(20)
-//    servers(1) ! TestWrite(1,2)
-//    Thread.sleep(20)
-//    servers(2) ! TestWrite(1,3)
-//    Thread.sleep(20)
+//    for (i <- 0 until 1000) {
+//      servers(0) ! TestWrite(1, 1)
+//      Thread.sleep(20)
+//      servers(1) ! TestWrite(1, 2)
+//      Thread.sleep(20)
+//      servers(2) ! TestWrite(1, 3)
+//      Thread.sleep(20)
+//    }
 //    servers(0) ! TestRead(1)
     /*************************************************************************/
 
@@ -130,22 +129,41 @@ class LoadMaster (val numNodes: Int, val servers: Seq[ActorRef], stores: Seq[Act
     /******************************************************************/
 
     /********* multiple Client, multiple key, multiple write *********/
-    for (i <- 0 until 100) {
-      servers(0) ! TestWrite(1, i)
-      servers(1) ! TestWrite(1, i)
-      servers(2) ! TestWrite(1, i)
-      servers(0) ! TestWrite(2, i)
-      servers(1) ! TestWrite(2, i)
-      servers(2) ! TestWrite(2, i)
-      servers(0) ! TestWrite(3, i)
-      servers(1) ! TestWrite(3, i)
-      servers(2) ! TestWrite(3, i)
-      Thread.sleep(100)
-      servers(0) ! TestRead(1)
-      servers(0) ! TestRead(2)
-      servers(0) ! TestRead(3)
-    }
-    /*************************************************************/
+//    for (i <- 0 until 100) {
+//      servers(0) ! TestWrite(1, i)
+//      servers(1) ! TestWrite(1, i)
+//      servers(2) ! TestWrite(1, i)
+//      servers(0) ! TestWrite(2, i)
+//      servers(1) ! TestWrite(2, i)
+//      servers(2) ! TestWrite(2, i)
+//      servers(0) ! TestWrite(3, i)
+//      servers(1) ! TestWrite(3, i)
+//      servers(2) ! TestWrite(3, i)
+//      Thread.sleep(100)
+//      servers(0) ! TestRead(1)
+//      servers(0) ! TestRead(2)
+//      servers(0) ! TestRead(3)
+//    }
+    /*******************  burst test  **************************/
+//    for (i <- 0 until 1000) {
+//      for (j <- 0 until numNodes) {
+//        for (k <- 0 until 5) {
+//          servers(j) ! TestWrite(k,1)
+//
+//        }
+//      }
+//    }
+//    Thread.sleep(10000)
+//    servers(0) ! TestRead(0)
+//    Thread.sleep(30)
+//    servers(0) ! TestRead(1)
+//    Thread.sleep(30)
+//    servers(0) ! TestRead(2)
+//    Thread.sleep(30)
+//    servers(0) ! TestRead(3)
+//    Thread.sleep(30)
+//    servers(0) ! TestRead(4)
+    /**********************************************************/
   }
 }
 

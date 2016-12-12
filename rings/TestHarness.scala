@@ -11,7 +11,7 @@ import scala.collection.mutable
 
 object TestHarness {
   val system = ActorSystem("Rings")
-  implicit val timeout = Timeout(20 seconds)
+  implicit val timeout = Timeout(10000 seconds)
   val numClient = 3
   val numStore = 10
   val numReplica = 3  // N
@@ -35,7 +35,8 @@ object TestHarness {
 
   def run(): Unit = {
     val future = ask(master, Start())
-    val done = Await.result(future, timeout.duration).asInstanceOf[Boolean]
+    Await.result(future, timeout.duration).asInstanceOf[Boolean]
+    //Thread.sleep(3000)
     val future2 = ask(master, Report())
     val done2 = Await.result(future2, timeout.duration).asInstanceOf[mutable.HashMap[BigInt, Stat]]
     println()
@@ -44,7 +45,6 @@ object TestHarness {
     for ((k,v) <- done2) {
       println(s"key ${k} has success write: ${v.successWrite} and fail write: ${v.failWrite}")
     }
-    Thread.sleep(30000)
     system.shutdown()
   }
 
